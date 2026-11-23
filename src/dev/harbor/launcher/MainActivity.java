@@ -530,11 +530,13 @@ public class MainActivity extends Activity {
     private boolean helperNoticeShown;
 
     // ---- navigation sound
-    private static final String KEY_SOUND = "nav_sound", KEY_SOUND_VOL = "nav_sound_volume";
+    private static final String KEY_SOUND = "nav_sound", KEY_SOUND_VOL = "nav_sound_vol_v2", KEY_SOUND_STYLE = "nav_sound_style";
+    private static final String[] SOUND_NAMES = {"Tick", "Pop", "Tink", "Thud", "Coin"};
+    private static final int[] SOUND_RES = {R.raw.snd_tick, R.raw.snd_pop, R.raw.snd_tink, R.raw.snd_thud, R.raw.snd_coin};
+    private final int[] soundIds = new int[SOUND_RES.length];
     private static final String[] VOLUME_NAMES = {"Low", "Medium", "High"};
     private static final float[] VOLUMES = {0.25f, 0.55f, 1.0f};
     private android.media.SoundPool soundPool;
-    private int dingId;
     private long lastDing;
     private boolean userMove; // only ding for D-pad moves, not focus Harbor restores itself
 
@@ -543,7 +545,7 @@ public class MainActivity extends Activity {
                 .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
         soundPool = new android.media.SoundPool.Builder().setMaxStreams(3).setAudioAttributes(aa).build();
-        dingId = soundPool.load(this, R.raw.ding, 1);
+        for (int i = 0; i < SOUND_RES.length; i++) soundIds[i] = soundPool.load(this, SOUND_RES[i], 1);
     }
 
     private void ding() {
@@ -551,9 +553,60 @@ public class MainActivity extends Activity {
         long now = android.os.SystemClock.uptimeMillis();
         if (now - lastDing < 90) return; // fast scrolling doesn't machine-gun it
         lastDing = now;
-        float v = VOLUMES[Math.max(0, Math.min(2, prefs.getInt(KEY_SOUND_VOL, 1)))];
-        soundPool.play(dingId, v, v, 1, 0, 1f);
+        playSound(soundStyle());
     }
+
+    private int soundStyle() {
+        return Math.max(0, Math.min(SOUND_RES.length - 1, prefs.getInt(KEY_SOUND_STYLE, 0)));
+    }
+
+    private void playSound(int style) {
+        if (soundPool == null) return;
+        float v = VOLUMES[Math.max(0, Math.min(2, prefs.getInt(KEY_SOUND_VOL, 0)))];
+        soundPool.play(soundIds[style], v, v, 1, 0, 1f);
+    }
+
+    /** Lists the dock sounds; moving over a row plays it, OK picks it. */
+    private void openSoundMenu(View anchor) {
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        final List<Runnable> previews = new ArrayList<>();
+        java.util.Set<Integer> checked = new java.util.HashSet<>();
+        boolean on = prefs.getBoolean(KEY_SOUND, true);
+        labels.add("Off");
+        actions.add(new Runnable() { public void run() { prefs.edit().putBoolean(KEY_SOUND, false).apply(); } });
+        previews.add(null);
+        if (!on) checked.add(0);
+        for (int i = 0; i < SOUND_NAMES.length; i++) {
+            final int idx = i;
+            labels.add(SOUND_NAMES[i]);
+            actions.add(new Runnable() {
+                public void run() {
+                    prefs.edit().putBoolean(KEY_SOUND, true).putInt(KEY_SOUND_STYLE, idx).apply();
+                    playSound(idx);
+                }
+            });
+            previews.add(new Runnable() { public void run() { playSound(idx); } });
+            if (on && soundStyle() == i) checked.add(i + 1);
+        }
+        final int vol = prefs.getInt(KEY_SOUND_VOL, 0);
+        labels.add("Volume: " + VOLUME_NAMES[vol]);
+        actions.add(new Runnable() {
+            public void run() {
+                prefs.edit().putInt(KEY_SOUND_VOL, (vol + 1) % 3).apply();
+                playSound(soundStyle());
+            }
+        });
+        previews.add(null);
+        int focus = on ? soundStyle() + 1 : 0;
+        float cx = dockFrame.getLeft() + dockRow.getLeft() + anchor.getLeft() + anchor.getWidth() / 2f;
+        float top = dockFrame.getTop() + dockRow.getTop() + anchor.getTop() - anchor.getHeight() * 0.32f;
+        menuPreviews = previews;
+        showMenu("Dock sound", labels, actions, cx, top - dp(8), true, true, checked, focus);
+        menuPreviews = null;
+    }
+
+    private List<Runnable> menuPreviews;
 
     private void openHomeButtonSetup() {
         closeOverlay();
@@ -773,24 +826,8 @@ public class MainActivity extends Activity {
             actions.add(new Runnable() { public void run() { openWallpaperMenu(tile); } });
             labels.add("Weather location\u2026");
             actions.add(new Runnable() { public void run() { askWeatherLocation(); } });
-            final boolean soundOn = prefs.getBoolean(KEY_SOUND, true);
-            labels.add("Dock sound: " + (soundOn ? "On" : "Off"));
-            actions.add(new Runnable() {
-                public void run() {
-                    prefs.edit().putBoolean(KEY_SOUND, !soundOn).apply();
-                    if (!soundOn) ding();
-                }
-            });
-            if (soundOn) {
-                final int vol = prefs.getInt(KEY_SOUND_VOL, 1);
-                labels.add("Dock sound volume: " + VOLUME_NAMES[vol]);
-                actions.add(new Runnable() {
-                    public void run() {
-                        prefs.edit().putInt(KEY_SOUND_VOL, (vol + 1) % 3).apply();
-                        ding();
-                    }
-                });
-            }
+            labels.add("Dock sound: " + (prefs.getBoolean(KEY_SOUND, true) ? SOUND_NAMES[soundStyle()] : "Off") + "\u2026");
+            actions.add(new Runnable() { public void run() { openSoundMenu(tile); } });
             if (hiddenCount() > 0) {
                 labels.add("Show hidden apps");
                 actions.add(new Runnable() { public void run() { unhideAll(); } });
@@ -890,6 +927,17 @@ public class MainActivity extends Activity {
                     actions.get(idx).run();
                 }
             });
+            if (menuPreviews != null && i < menuPreviews.size() && menuPreviews.get(i) != null) {
+                final Runnable pv = menuPreviews.get(i);
+                final boolean[] initial = {i == focusRow};
+                row.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+                    public void onFocusChange(View v, boolean has) {
+                        if (!has) return;
+                        if (initial[0]) { initial[0] = false; return; } // don't play on opening
+                        pv.run();
+                    }
+                });
+            }
             rowsBox.addView(row, new LinearLayout.LayoutParams(-1, -2));
             if (first == null || focusRow == i) first = row;
         }

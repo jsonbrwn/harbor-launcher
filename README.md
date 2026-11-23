@@ -12,7 +12,7 @@ All artwork is drawn by the app itself. No third-party icons, fonts or images ar
 
 ## Dock sound
 
-Moving along the dock plays a short two-tone "ding" (an original sound made by `tools/make_ding.py`). Hold OK on Settings to turn **Dock sound** on or off or change its volume.
+Moving along the dock plays a short, quiet sound. Hold OK on Settings > **Dock sound…** to choose Tick (default), Pop, Tink, Thud or Coin, or Off, and to set the volume. Moving over a sound in that list plays it. All five are original sounds made by `tools/make_sounds.py`.
 
 ## Remote controls
 
@@ -86,7 +86,7 @@ sudo apt-get install android-sdk-platform-23 android-sdk-build-tools dalvik-exch
 
 ## Download
 
-The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.6).
+The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.7).
 The signing key isn't in this repository. It's kept privately, so a fresh clone builds with a new key, and
 that build can't install over the copy on the TV without uninstalling first.
 
