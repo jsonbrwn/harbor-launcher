@@ -797,6 +797,7 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
+        desktopClock.animate().alpha(0f).setDuration(120).start(); // keep pop-ups from sitting on the date
         openOverlay(panel, false, first);
     }
 
@@ -1092,6 +1093,7 @@ public class MainActivity extends Activity {
             desktopClock.animate().alpha(1f).setDuration(150).start();
         }
         overlayIsGrid = false;
+        if (overlay == null) desktopClock.animate().alpha(1f).setDuration(150).start();
         final View back = focusBeforeOverlay;
         focusBeforeOverlay = null;
         if (back != null && back.isAttachedToWindow() && back.isFocusable()) {
