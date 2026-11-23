@@ -41,7 +41,9 @@ public class HomeButtonService extends AccessibilityService {
         if (instance == null) return false;
         forcePkg = pkg;
         forceStep = 0;
-        forceDeadline = SystemClock.elapsedRealtime() + 10000;
+        forceDeadline = SystemClock.elapsedRealtime() + 12000;
+        instance.main.removeCallbacks(instance.poll);
+        instance.main.postDelayed(instance.poll, 600);
         return true;
     }
 
@@ -58,29 +60,52 @@ public class HomeButtonService extends AccessibilityService {
     }
 
     private void handleForceStop(AccessibilityEvent event) {
+        step();
+    }
+
+    /** Polls while a force stop is pending, since some TCL screens send few accessibility events. */
+    private final Runnable poll = new Runnable() {
+        public void run() {
+            if (forcePkg == null) return;
+            step();
+            if (forcePkg != null) main.postDelayed(this, 400);
+        }
+    };
+
+    private void step() {
         if (forcePkg == null) return;
         long now = SystemClock.elapsedRealtime();
         if (now > forceDeadline) { forcePkg = null; return; }
-        CharSequence pkg = event.getPackageName();
-        if (pkg == null || !pkg.toString().toLowerCase(java.util.Locale.US).contains("settings")) return;
         if (now - lastClick < 700) return; // let the screen settle between presses
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null) return;
+        CharSequence rootPkg = root.getPackageName();
+        if (rootPkg != null && (rootPkg.toString().equals(getPackageName()) || rootPkg.toString().equals(forcePkg))) return;
         if (forceStep == 0) {
             AccessibilityNodeInfo n = findByText(root, "Force stop", false);
             if (n == null) return;
             AccessibilityNodeInfo target = clickable(n);
-            if (target == null) return;
+            if (target == null) target = n;
             if (!target.isEnabled() || !n.isEnabled()) { finishForceStop(); return; } // already stopped
             if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 forceStep = 1;
                 lastClick = now;
             }
         } else {
+            // TCL shows the confirmation as a full-screen page ("If you force stop an app..." OK / Cancel).
             AccessibilityNodeInfo ok = findByText(root, "OK", true);
-            if (ok == null) return;
-            AccessibilityNodeInfo target = clickable(ok);
-            if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+            AccessibilityNodeInfo target = ok == null ? null : clickable(ok);
+            if (target == null) target = ok;
+            if (target == null && findByText(root, "force stop an app", false) != null) {
+                target = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT); // OK has focus by default
+            }
+            if (target == null) {
+                // Still on the App info page and the button went grey: the app is stopped.
+                AccessibilityNodeInfo fs = findByText(root, "Force stop", false);
+                if (fs != null && !fs.isEnabled()) finishForceStop();
+                return;
+            }
+            if (target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
                 lastClick = now;
                 finishForceStop();
             }
@@ -104,7 +129,7 @@ public class HomeButtonService extends AccessibilityService {
             if (t == null) t = n.getContentDescription();
             if (t == null) continue;
             String s = t.toString().trim();
-            if (exact ? s.equalsIgnoreCase(text) : s.toLowerCase(java.util.Locale.US).startsWith(text.toLowerCase(java.util.Locale.US))) return n;
+            if (exact ? s.equalsIgnoreCase(text) : s.toLowerCase(java.util.Locale.US).contains(text.toLowerCase(java.util.Locale.US))) return n;
         }
         return null;
     }

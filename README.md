@@ -48,7 +48,11 @@ Settings > Accessibility, or over adb:
 ```sh
 adb shell settings put secure enabled_accessibility_services dev.harbor.launcher/dev.harbor.launcher.HomeButtonService
 adb shell settings put secure accessibility_enabled 1
+# TCL sets also block the helper from starting until auto-start is allowed:
+adb shell appops set dev.harbor.launcher APP_AUTO_START allow
 ```
+
+On TCL the confirmation is a full-screen page ("If you force stop an app, it may misbehave." OK / Cancel); the helper presses OK there too.
 
 (That replaces the list of enabled services. If Projectivy's override is still on, turn it off first so the two don't fight.)
 
@@ -75,7 +79,7 @@ sudo apt-get install android-sdk-platform-23 android-sdk-build-tools dalvik-exch
 
 ## Download
 
-The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.5).
+The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.5.1).
 The signing key isn't in this repository. It's kept privately, so a fresh clone builds with a new key, and
 that build can't install over the copy on the TV without uninstalling first.
 
@@ -91,4 +95,8 @@ cur=$(adb shell settings get secure enabled_accessibility_services)
 svc=dev.harbor.launcher/dev.harbor.launcher.HomeButtonService
 adb shell settings put secure enabled_accessibility_services "${cur:+$cur:}$svc"
 adb shell settings put secure accessibility_enabled 1
+# TCL sets also block the helper from starting until auto-start is allowed:
+adb shell appops set dev.harbor.launcher APP_AUTO_START allow
 ```
+
+On TCL the confirmation is a full-screen page ("If you force stop an app, it may misbehave." OK / Cancel); the helper presses OK there too.
