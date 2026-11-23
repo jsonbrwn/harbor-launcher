@@ -138,7 +138,7 @@ class WeatherWidget extends LinearLayout {
                     String url = String.format(Locale.US,
                             "https://api.open-meteo.com/v1/forecast?latitude=%.4f&longitude=%.4f"
                                     + "&current=temperature_2m,weather_code,is_day"
-                                    + "&daily=weather_code,temperature_2m_max,temperature_2m_min"
+                                    + "&daily=weather_code,temperature_2m_max,temperature_2m_min&hourly=weather_code"
                                     + "&temperature_unit=fahrenheit&timezone=auto&forecast_days=4", lat, lon);
                     final JSONObject json = new JSONObject(get(url));
                     final String cn = cityName;
@@ -170,21 +170,48 @@ class WeatherWidget extends LinearLayout {
                 LinearLayout col = new LinearLayout(getContext());
                 col.setOrientation(VERTICAL);
                 col.setGravity(Gravity.CENTER_HORIZONTAL);
-                String label = i == 0 ? "TODAY" : out.format(in.parse(t.getString(i))).toUpperCase(Locale.US);
+                String label = out.format(in.parse(t.getString(i))).toUpperCase(Locale.US);
                 TextView dn = text(getContext(), 9, 0xB3FFFFFF, display);
                 dn.setText(label);
                 col.addView(dn);
                 WeatherIcon wi = new WeatherIcon(getContext());
-                wi.set(wc.getInt(i), true);
+                wi.set(dayCode(json, i, wc.getInt(i)), true);
                 col.addView(wi, new LayoutParams(Ui.dp(getContext(), 22), Ui.dp(getContext(), 22)));
                 TextView hl = text(getContext(), 11, 0xF2FFFFFF, null);
                 hl.setText(Math.round(hi.getDouble(i)) + "° " + Math.round(lo.getDouble(i)) + "°");
                 col.addView(hl);
-                days.addView(col, new LayoutParams(0, -2, 1f));
+                LayoutParams cl = new LayoutParams(0, -2, 1f);
+                cl.leftMargin = cl.rightMargin = Ui.dp(getContext(), 3);
+                days.addView(col, cl);
             }
             setVisibility(VISIBLE);
         } catch (Exception e) {
             android.util.Log.w("Harbor", "weather render: " + e);
+        }
+    }
+
+    /**
+     * The daily code is the day's worst hour, so a single cloudy hour makes every day look
+     * cloudy. Use the most common code between 10:00 and 16:00 instead.
+     */
+    private static int dayCode(JSONObject json, int day, int fallback) {
+        try {
+            JSONArray h = json.getJSONObject("hourly").getJSONArray("weather_code");
+            java.util.Map<Integer, Integer> counts = new java.util.HashMap<>();
+            int best = fallback, bestN = 0;
+            for (int hr = 10; hr <= 16; hr++) {
+                int idx = day * 24 + hr;
+                if (idx >= h.length()) break;
+                int code = h.getInt(idx);
+                Integer n = counts.get(code);
+                n = n == null ? 1 : n + 1;
+                counts.put(code, n);
+                if (n > bestN || (n == bestN && code > best)) { best = code; bestN = n; }
+            }
+            android.util.Log.i("Harbor", "weather day " + day + " daily=" + fallback + " midday=" + best);
+            return bestN > 0 ? best : fallback;
+        } catch (Exception e) {
+            return fallback;
         }
     }
 

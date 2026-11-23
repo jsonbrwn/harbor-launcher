@@ -137,6 +137,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         resumed = true;
+        keepHelperEnabled();
         weather.start();
         scheduleRotation();
         hideSystemUi();
@@ -488,9 +489,42 @@ public class MainActivity extends Activity {
         }
     }
 
+    private static final String KEY_HELPER_WANTED = "helper_wanted";
+
+    /**
+     * Android drops an accessibility service when its app is updated. If the helper was on before,
+     * turn it back on (possible when adb has granted WRITE_SECURE_SETTINGS), or tell the user once.
+     */
+    private void keepHelperEnabled() {
+        if (HomeButtonService.isEnabled(this)) {
+            if (!prefs.getBoolean(KEY_HELPER_WANTED, false)) prefs.edit().putBoolean(KEY_HELPER_WANTED, true).apply();
+            return;
+        }
+        if (!prefs.getBoolean(KEY_HELPER_WANTED, false)) return;
+        if (checkCallingOrSelfPermission("android.permission.WRITE_SECURE_SETTINGS") == PackageManager.PERMISSION_GRANTED) {
+            try {
+                String svc = new android.content.ComponentName(this, HomeButtonService.class).flattenToString();
+                String cur = Settings.Secure.getString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
+                String next = TextUtils.isEmpty(cur) ? svc : cur + ":" + svc;
+                Settings.Secure.putString(getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, next);
+                Settings.Secure.putInt(getContentResolver(), Settings.Secure.ACCESSIBILITY_ENABLED, 1);
+                android.util.Log.i("Harbor", "re-enabled Harbor helper after update");
+                return;
+            } catch (Exception e) {
+                android.util.Log.w("Harbor", "could not re-enable helper: " + e);
+            }
+        }
+        if (!helperNoticeShown) {
+            helperNoticeShown = true;
+            Toast.makeText(this, "Harbor helper was turned off by the update. Hold OK on Settings > Turn on Harbor helper to restore Force quit.", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private boolean helperNoticeShown;
+
     private void openHomeButtonSetup() {
         closeOverlay();
-        toast("Turn on \"Harbor Home button\" so the remote's Home button opens Harbor");
+        toast("Turn on \"Harbor helper\" in Accessibility. Force quit uses it to press Force stop for you.");
         if (!start(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))) {
             openSettings();
         }
@@ -710,8 +744,8 @@ public class MainActivity extends Activity {
                 labels.add("Show hidden apps");
                 actions.add(new Runnable() { public void run() { unhideAll(); } });
             }
-            if (!HomeButtonService.isEnabled(this) && !isDefaultHome()) {
-                labels.add("Set up Home button");
+            if (!HomeButtonService.isEnabled(this)) {
+                labels.add("Turn on Harbor helper\u2026");
                 actions.add(new Runnable() { public void run() { openHomeButtonSetup(); } });
             }
         }

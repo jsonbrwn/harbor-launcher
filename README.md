@@ -50,6 +50,9 @@ adb shell settings put secure enabled_accessibility_services dev.harbor.launcher
 adb shell settings put secure accessibility_enabled 1
 # TCL sets also block the helper from starting until auto-start is allowed:
 adb shell appops set dev.harbor.launcher APP_AUTO_START allow
+# Android turns accessibility services off when their app updates. This one-time grant lets Harbor
+# turn its helper back on by itself after each update:
+adb shell pm grant dev.harbor.launcher android.permission.WRITE_SECURE_SETTINGS
 ```
 
 On TCL the confirmation is a full-screen page ("If you force stop an app, it may misbehave." OK / Cancel); the helper presses OK there too.
@@ -79,7 +82,7 @@ sudo apt-get install android-sdk-platform-23 android-sdk-build-tools dalvik-exch
 
 ## Download
 
-The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.5.1).
+The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.5.2).
 The signing key isn't in this repository. It's kept privately, so a fresh clone builds with a new key, and
 that build can't install over the copy on the TV without uninstalling first.
 
@@ -97,6 +100,9 @@ adb shell settings put secure enabled_accessibility_services "${cur:+$cur:}$svc"
 adb shell settings put secure accessibility_enabled 1
 # TCL sets also block the helper from starting until auto-start is allowed:
 adb shell appops set dev.harbor.launcher APP_AUTO_START allow
+# Android turns accessibility services off when their app updates. This one-time grant lets Harbor
+# turn its helper back on by itself after each update:
+adb shell pm grant dev.harbor.launcher android.permission.WRITE_SECURE_SETTINGS
 ```
 
 On TCL the confirmation is a full-screen page ("If you force stop an app, it may misbehave." OK / Cancel); the helper presses OK there too.
