@@ -86,6 +86,7 @@ public class MainActivity extends Activity {
     private WallpaperView wallpaper;
     private LinearLayout menuBar;
     private View desktopClock;
+    private WeatherWidget weather;
     private FrameLayout dockFrame;
     private LinearLayout dockRow;
     private TextView tooltip;
@@ -136,6 +137,7 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         resumed = true;
+        weather.start();
         scheduleRotation();
         hideSystemUi();
         if (homeSetupItem != null) {
@@ -147,6 +149,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         resumed = false;
+        weather.stop();
         rotationHandler.removeCallbacks(rotateTick);
         super.onPause();
     }
@@ -212,6 +215,12 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL | Gravity.TOP);
         clp.topMargin = dp(96);
         root.addView(desktopClock, clp);
+
+        weather = new WeatherWidget(this, prefs, assetFont("fonts/clock.ttf", Typeface.DEFAULT));
+        FrameLayout.LayoutParams wlp = new FrameLayout.LayoutParams(dp(236), -2, Gravity.TOP | Gravity.RIGHT);
+        wlp.topMargin = dp(28);
+        wlp.rightMargin = dp(32);
+        root.addView(weather, wlp);
 
         menuBar = buildMenuBar();
         root.addView(menuBar, new FrameLayout.LayoutParams(-1, dp(30), Gravity.TOP));
@@ -695,6 +704,8 @@ public class MainActivity extends Activity {
         if (AppEntry.SETTINGS.equals(e.key)) {
             labels.add("Wallpaper\u2026");
             actions.add(new Runnable() { public void run() { openWallpaperMenu(tile); } });
+            labels.add("Weather location\u2026");
+            actions.add(new Runnable() { public void run() { askWeatherLocation(); } });
             if (hiddenCount() > 0) {
                 labels.add("Show hidden apps");
                 actions.add(new Runnable() { public void run() { unhideAll(); } });
@@ -821,7 +832,7 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
-        desktopClock.animate().alpha(0f).setDuration(120).start(); // keep pop-ups from sitting on the date
+        fadeDesktop(false); // keep pop-ups from sitting on the date
         openOverlay(panel, false, first);
     }
 
@@ -1035,7 +1046,7 @@ public class MainActivity extends Activity {
         wallpaper.setHeavyBlur(true);
         menuBar.animate().alpha(0f).setDuration(150).start();
         dockFrame.animate().alpha(0f).setDuration(150).start();
-        desktopClock.animate().alpha(0f).setDuration(150).start();
+        fadeDesktop(false);
         tooltip.setAlpha(0f);
         openOverlay(grid, true, first);
     }
@@ -1114,10 +1125,10 @@ public class MainActivity extends Activity {
             wallpaper.setHeavyBlur(false);
             menuBar.animate().alpha(1f).setDuration(150).start();
             dockFrame.animate().alpha(1f).setDuration(150).start();
-            desktopClock.animate().alpha(1f).setDuration(150).start();
+            fadeDesktop(true);
         }
         overlayIsGrid = false;
-        if (overlay == null) desktopClock.animate().alpha(1f).setDuration(150).start();
+        if (overlay == null) fadeDesktop(true);
         final View back = focusBeforeOverlay;
         focusBeforeOverlay = null;
         if (back != null && back.isAttachedToWindow() && back.isFocusable()) {
@@ -1125,6 +1136,31 @@ public class MainActivity extends Activity {
         } else {
             focusDock(0);
         }
+    }
+
+    private void fadeDesktop(boolean show) {
+        desktopClock.animate().alpha(show ? 1f : 0f).setDuration(150).start();
+        weather.animate().alpha(show ? 1f : 0f).setDuration(150).start();
+    }
+
+    private void askWeatherLocation() {
+        final android.widget.EditText input = new android.widget.EditText(this);
+        input.setSingleLine(true);
+        input.setHint("City or ZIP code");
+        input.setText(prefs.getString(WeatherWidget.K_PLACE, ""));
+        input.setSelectAllOnFocus(true);
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Weather location")
+                .setMessage("Enter a city or ZIP code. Leave it empty to detect it automatically.")
+                .setView(input)
+                .setPositiveButton("Save", new android.content.DialogInterface.OnClickListener() {
+                    public void onClick(android.content.DialogInterface d, int w) {
+                        prefs.edit().putString(WeatherWidget.K_PLACE, input.getText().toString().trim()).apply();
+                        weather.refresh(true);
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
     }
 
     private void toast(String s) {

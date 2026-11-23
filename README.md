@@ -5,6 +5,7 @@ A minimal home screen for Android TV / Google TV with a desktop-style layout:
 - Large thin **clock and date** over one of **25 original illustrated race-circuit wallpapers**. By default the wallpaper changes every 10 minutes with a slow crossfade. Hold OK on the Settings tile and choose **Wallpaper…** to turn rotation off or pick one.
 - The clock and date use **Michroma** (SIL Open Font License, see `assets/fonts`).
 - A frosted **dock** at the bottom. The focused tile grows, its neighbours grow a little, and its name pops up above it.
+- A **weather card** in the top-right corner: current temperature and conditions plus a 3-day outlook, from [Open-Meteo](https://open-meteo.com) (free, no key). It updates every 30 minutes. The default location is ZIP 85224. Hold OK on Settings > **Weather location…** to change it, or leave it empty to detect it from the TV's internet connection.
 - An **Apps** grid with every installed app (plus Live TV).
 
 All artwork is drawn by the app itself. No third-party icons, fonts or images are used.
@@ -74,7 +75,7 @@ sudo apt-get install android-sdk-platform-23 android-sdk-build-tools dalvik-exch
 
 ## Download
 
-The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.4).
+The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.5).
 The signing key isn't in this repository. It's kept privately, so a fresh clone builds with a new key, and
 that build can't install over the copy on the TV without uninstalling first.
 
