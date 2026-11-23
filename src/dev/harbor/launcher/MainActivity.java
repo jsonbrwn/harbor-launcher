@@ -50,6 +50,10 @@ public class MainActivity extends Activity {
 
     private static final String PREFS = "harbor";
     private static final String KEY_PINS = "pins";
+    private static final String KEY_HIDDEN = "hidden";
+    private static final String KEY_HIDDEN_SEEDED = "hidden_seeded";
+    /** Apps hidden from Harbor on first run, matched by their label. */
+    private static final String[] DEFAULT_HIDDEN_LABELS = {"TCL Home", "TV", "Live TV"};
     private static final String KEY_WALLPAPER = "wallpaper_index";
     private static final String KEY_WALLPAPER_AT = "wallpaper_changed_at";
     private static final String KEY_ROTATE = "wallpaper_rotate";
@@ -62,7 +66,6 @@ public class MainActivity extends Activity {
             "com.netflix.ninja",                    // Netflix
             "com.amazon.amazonvideo.livingroom",    // Prime Video
             "com.google.android.youtube.tv",        // YouTube
-            AppEntry.LIVETV,                        // Live TV / antenna
     };
 
     /** Packages that commonly host the antenna / Live TV experience, tried in order. */
@@ -113,7 +116,7 @@ public class MainActivity extends Activity {
         buildUi();
         reloadApps();
         loadPins();
-        rebuildDock(1);
+        rebuildDock(0);
 
         IntentFilter f = new IntentFilter();
         f.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -154,7 +157,7 @@ public class MainActivity extends Activity {
         // Pressing Home while already home: close whatever is open and go back to the dock.
         if (Intent.ACTION_MAIN.equals(intent.getAction())) {
             closeOverlay();
-            focusDock(1);
+            focusDock(0);
         }
     }
 
@@ -207,11 +210,12 @@ public class MainActivity extends Activity {
 
         desktopClock = buildDesktopClock();
         FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL | Gravity.TOP);
-        clp.topMargin = dp(120);
+        clp.topMargin = dp(96);
         root.addView(desktopClock, clp);
 
         menuBar = buildMenuBar();
         root.addView(menuBar, new FrameLayout.LayoutParams(-1, dp(30), Gravity.TOP));
+        menuBar.setVisibility(View.GONE); // removed by request; wallpaper options live on the Settings tile
 
         dockFrame = new FrameLayout(this);
         dockFrame.setClipChildren(false);
@@ -248,8 +252,9 @@ public class MainActivity extends Activity {
         time.setFormat12Hour("h:mm");
         time.setFormat24Hour("H:mm");
         time.setTextColor(0xF2FFFFFF);
-        time.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 84);
-        time.setTypeface(Typeface.create("sans-serif-thin", Typeface.NORMAL));
+        time.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 76);
+        time.setTypeface(assetFont("fonts/clock.ttf", Typeface.create("sans-serif-thin", Typeface.NORMAL)));
+        time.getPaint().setTextSkewX(CLOCK_SKEW);
         time.setShadowLayer(dp(10), 0, dp(2), 0x55000000);
         box.addView(time);
 
@@ -257,11 +262,26 @@ public class MainActivity extends Activity {
         date.setFormat12Hour("EEEE, MMMM d");
         date.setFormat24Hour("EEEE, MMMM d");
         date.setTextColor(0xD9FFFFFF);
-        date.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
-        date.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        date.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        date.setLetterSpacing(0.04f);
+        date.setTypeface(assetFont("fonts/date.ttf", Typeface.create("sans-serif-light", Typeface.NORMAL)));
+        date.getPaint().setTextSkewX(CLOCK_SKEW);
+        if (CLOCK_UPPERCASE_DATE) date.setAllCaps(true);
         date.setShadowLayer(dp(6), 0, dp(1), 0x55000000);
         box.addView(date);
         return box;
+    }
+
+    /** Clock style: fonts come from assets/fonts (SIL Open Font License). */
+    private static final float CLOCK_SKEW = 0f;
+    private static final boolean CLOCK_UPPERCASE_DATE = true;
+
+    private Typeface assetFont(String path, Typeface fallback) {
+        try {
+            return Typeface.createFromAsset(getAssets(), path);
+        } catch (Exception e) {
+            return fallback;
+        }
     }
 
     private LinearLayout buildMenuBar() {
@@ -358,8 +378,35 @@ public class MainActivity extends Activity {
         Collections.sort(list, new Comparator<AppEntry>() {
             public int compare(AppEntry a, AppEntry b) { return a.label.compareToIgnoreCase(b.label); }
         });
+        java.util.Set<String> hidden = new java.util.HashSet<>(prefs.getStringSet(KEY_HIDDEN, new java.util.HashSet<String>()));
+        if (!prefs.getBoolean(KEY_HIDDEN_SEEDED, false)) {
+            for (AppEntry e : list) {
+                for (String l : DEFAULT_HIDDEN_LABELS) if (l.equalsIgnoreCase(e.label.trim())) hidden.add(e.key);
+            }
+            prefs.edit().putStringSet(KEY_HIDDEN, hidden).putBoolean(KEY_HIDDEN_SEEDED, true).apply();
+        }
         installed.clear();
-        for (AppEntry e : list) installed.put(e.key, e);
+        for (AppEntry e : list) if (!hidden.contains(e.key)) installed.put(e.key, e);
+    }
+
+    private int hiddenCount() {
+        return prefs.getStringSet(KEY_HIDDEN, new java.util.HashSet<String>()).size();
+    }
+
+    private void hideApp(String pkg) {
+        java.util.Set<String> hidden = new java.util.HashSet<>(prefs.getStringSet(KEY_HIDDEN, new java.util.HashSet<String>()));
+        hidden.add(pkg);
+        prefs.edit().putStringSet(KEY_HIDDEN, hidden).apply();
+        pins.remove(pkg);
+        savePins();
+        reloadApps();
+        rebuildDock(-1);
+    }
+
+    private void unhideAll() {
+        prefs.edit().putStringSet(KEY_HIDDEN, new java.util.HashSet<String>()).apply();
+        reloadApps();
+        toast("Hidden apps are back in Apps");
     }
 
     private AppEntry entryFor(String key) {
@@ -377,7 +424,8 @@ public class MainActivity extends Activity {
             for (String p : DEFAULT_PINS) if (p.startsWith("@") || installed.containsKey(p)) pins.add(p);
             savePins();
         } else if (saved.length() > 0) {
-            for (String p : saved.split(",")) if (p.length() > 0) pins.add(p);
+            for (String p : saved.split(",")) if (p.length() > 0 && !AppEntry.LIVETV.equals(p)) pins.add(p);
+            if (!TextUtils.join(",", pins).equals(saved)) savePins();
         }
     }
 
@@ -496,7 +544,6 @@ public class MainActivity extends Activity {
         }
         dockRow.removeAllViews();
         List<AppEntry> items = new ArrayList<>();
-        items.add(entryFor(AppEntry.APPS));
         for (String p : pins) {
             AppEntry e = entryFor(p);
             if (e != null) items.add(e);
@@ -514,6 +561,7 @@ public class MainActivity extends Activity {
 
         dockRow.addView(dockTile(entryFor(AppEntry.INPUTS), size), dockParams(size));
         dockRow.addView(dockTile(entryFor(AppEntry.SETTINGS), size), dockParams(size));
+        dockRow.addView(dockTile(entryFor(AppEntry.APPS), size), dockParams(size));
 
         if (focusIndex >= 0 && overlay == null) focusDock(focusIndex);
     }
@@ -636,9 +684,21 @@ public class MainActivity extends Activity {
                 public void run() {
                     pins.remove(pinIndex);
                     savePins();
-                    rebuildDock(Math.max(0, pinIndex));
+                    rebuildDock(Math.max(0, pinIndex - 1));
                 }
             });
+        }
+        if (AppEntry.SETTINGS.equals(e.key)) {
+            labels.add("Wallpaper\u2026");
+            actions.add(new Runnable() { public void run() { openWallpaperMenu(tile); } });
+            if (hiddenCount() > 0) {
+                labels.add("Show hidden apps");
+                actions.add(new Runnable() { public void run() { unhideAll(); } });
+            }
+            if (!HomeButtonService.isEnabled(this) && !isDefaultHome()) {
+                labels.add("Set up Home button");
+                actions.add(new Runnable() { public void run() { openHomeButtonSetup(); } });
+            }
         }
         float cx = dockFrame.getLeft() + dockRow.getLeft() + tile.getLeft() + tile.getWidth() / 2f;
         float top = dockFrame.getTop() + dockRow.getTop() + tile.getTop() - tile.getHeight() * 0.32f;
@@ -650,7 +710,7 @@ public class MainActivity extends Activity {
         if (to < 0 || to >= pins.size()) return;
         Collections.swap(pins, index, to);
         savePins();
-        rebuildDock(to + 1); // +1 for the Apps tile at the start of the dock
+        rebuildDock(to);
     }
 
     // ------------------------------------------------------------------ panels
@@ -740,30 +800,90 @@ public class MainActivity extends Activity {
         openOverlay(panel, false, first);
     }
 
+    /** The five inputs Jason uses, in this order. */
+    private static final String[] INPUT_NAMES = {"HDMI 1", "HDMI 2", "HDMI 3", "Antenna TV", "AV"};
+
     private void openInputs(View anchor, boolean fromDock) {
-        final List<TvInputInfo> inputs = tvInputs();
+        final TvInputInfo[] mapped = mapInputs(tvInputs());
         List<String> labels = new ArrayList<>();
         List<Runnable> actions = new ArrayList<>();
-        for (final TvInputInfo info : inputs) {
-            CharSequence l = info.loadLabel(this);
-            labels.add(l == null ? info.getId() : l.toString());
+        for (int i = 0; i < INPUT_NAMES.length; i++) {
+            final TvInputInfo info = mapped[i];
+            final boolean antenna = i == 3;
+            labels.add(INPUT_NAMES[i]);
             actions.add(new Runnable() {
                 public void run() {
-                    if (!openTvInput(info)) toast("That input could not be opened");
+                    if (info != null && openTvInput(info)) return;
+                    if (antenna) {
+                        for (String pkg : LIVE_TV_PACKAGES) if (launchPackage(pkg)) return;
+                    }
+                    toast("That input could not be opened");
                 }
             });
         }
-        labels.add("TV settings…");
-        actions.add(new Runnable() { public void run() { openSettings(); } });
-
-        if (fromDock && anchor != null && anchor.getParent() == dockRow) {
-            float cx = dockFrame.getLeft() + dockRow.getLeft() + anchor.getLeft() + anchor.getWidth() / 2f;
-            float top = dockFrame.getTop() + dockRow.getTop() + anchor.getTop() - anchor.getHeight() * 0.32f;
-            showMenu(inputs.isEmpty() ? "No inputs reported" : "Inputs", labels, actions, cx, top - dp(8), true, true, -1);
+        float cx, top;
+        if (anchor != null && anchor.getParent() == dockRow) {
+            cx = dockFrame.getLeft() + dockRow.getLeft() + anchor.getLeft() + anchor.getWidth() / 2f;
+            top = dockFrame.getTop() + dockRow.getTop() + anchor.getTop() - anchor.getHeight() * 0.32f - dp(8);
         } else {
-            float x = anchor == null ? dp(120) : anchor.getLeft() + menuBar.getLeft();
-            showMenu(inputs.isEmpty() ? "No inputs reported" : "Inputs", labels, actions, x, menuBar.getBottom() + dp(4), false, false, -1);
+            cx = root.getWidth() / 2f;
+            top = root.getHeight() - dp(120);
         }
+        showMenu("Inputs", labels, actions, cx, top, true, true, -1);
+    }
+
+    /**
+     * Matches the TV's reported inputs to HDMI 1-3, Antenna TV and AV. Devices hanging off an HDMI
+     * port (CEC) and tuner inputs from streaming apps are ignored.
+     */
+    private TvInputInfo[] mapInputs(List<TvInputInfo> all) {
+        TvInputInfo[] out = new TvInputInfo[INPUT_NAMES.length];
+        List<TvInputInfo> hdmi = new ArrayList<>();
+        TvInputInfo bestTuner = null;
+        int bestScore = -1;
+        PackageManager pm = getPackageManager();
+        for (TvInputInfo info : all) {
+            if (info.getParentId() != null) continue;
+            String label = String.valueOf(info.loadLabel(this));
+            String l = label.toLowerCase(java.util.Locale.US);
+            String pkg = info.getServiceInfo() != null ? info.getServiceInfo().packageName : "";
+            android.util.Log.i("Harbor", "input id=" + info.getId() + " type=" + info.getType() + " label=" + label
+                    + " passthrough=" + info.isPassthroughInput() + " pkg=" + pkg);
+            int type = info.getType();
+            if (type == TvInputInfo.TYPE_HDMI) {
+                hdmi.add(info);
+            } else if (type == TvInputInfo.TYPE_COMPOSITE || l.equals("av") || l.contains("composite")) {
+                if (out[4] == null) out[4] = info;
+            } else if (type == TvInputInfo.TYPE_TUNER && !info.isPassthroughInput()) {
+                int score = 0;
+                if (l.contains("antenna") || l.contains("air") || l.contains("atv") || l.contains("dtv")
+                        || l.contains("broadcast") || l.equals("tv") || l.contains("channel")) score += 3;
+                String pl = pkg.toLowerCase(java.util.Locale.US);
+                if (pl.contains("tcl") || pl.contains("mtk") || pl.contains("mediatek") || pl.contains("realtek")
+                        || pl.contains("tvinput") || pl.contains("tuner")) score += 2;
+                try {
+                    if ((pm.getApplicationInfo(pkg, 0).flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0) score += 1;
+                    else score -= 5; // downloaded apps' channel sources are not the antenna
+                } catch (Exception ignored) { }
+                if (score > bestScore) { bestScore = score; bestTuner = info; }
+            }
+        }
+        if (bestScore >= 0) out[3] = bestTuner;
+        // HDMI n: prefer a label that names the port number, else report order.
+        boolean[] used = new boolean[hdmi.size()];
+        for (int n = 1; n <= 3; n++) {
+            for (int j = 0; j < hdmi.size(); j++) {
+                String l = String.valueOf(hdmi.get(j).loadLabel(this)).replace(" ", "").toLowerCase(java.util.Locale.US);
+                if (!used[j] && l.contains("hdmi" + n)) { out[n - 1] = hdmi.get(j); used[j] = true; break; }
+            }
+        }
+        for (int n = 1; n <= 3; n++) {
+            if (out[n - 1] != null) continue;
+            for (int j = 0; j < hdmi.size(); j++) {
+                if (!used[j]) { out[n - 1] = hdmi.get(j); used[j] = true; break; }
+            }
+        }
+        return out;
     }
 
     private void openWallpaperMenu(View anchor) {
@@ -789,8 +909,13 @@ public class MainActivity extends Activity {
             if (i == wallpaper.getIndex()) checked.add(offset + i);
             actions.add(new Runnable() { public void run() { setWallpaper(idx); } });
         }
-        showMenu("Wallpaper", labels, actions, anchor.getLeft() + menuBar.getLeft(),
-                menuBar.getBottom() + dp(4), false, false, checked, offset + wallpaper.getIndex());
+        if (anchor != null && anchor.getParent() == dockRow) {
+            float cx = dockFrame.getLeft() + dockRow.getLeft() + anchor.getLeft() + anchor.getWidth() / 2f;
+            float top = dockFrame.getTop() + dockRow.getTop() + anchor.getTop() - anchor.getHeight() * 0.32f;
+            showMenu("Wallpaper", labels, actions, cx, top - dp(8), true, true, checked, offset + wallpaper.getIndex());
+        } else {
+            showMenu("Wallpaper", labels, actions, dp(40), dp(40), false, false, checked, offset + wallpaper.getIndex());
+        }
     }
 
     private void setWallpaper(int index) {
@@ -816,7 +941,9 @@ public class MainActivity extends Activity {
         rotationHandler.postDelayed(rotateTick, wait);
     }
 
-    private void openAppsGrid() {
+    private void openAppsGrid() { openAppsGrid(null); }
+
+    private void openAppsGrid(String focusKey) {
         closeOverlay();
         FrameLayout grid = new FrameLayout(this);
         grid.setClipChildren(false);
@@ -845,7 +972,6 @@ public class MainActivity extends Activity {
         scroll.addView(rows);
 
         List<AppEntry> all = new ArrayList<>();
-        all.add(entryFor(AppEntry.LIVETV));
         all.addAll(installed.values());
 
         final int cols = 7;
@@ -863,12 +989,12 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(tile, tile + dp(26));
             lp.setMargins(dp(14), dp(6), dp(14), dp(10));
             row.addView(t, lp);
-            if (first == null) first = t;
+            if (first == null || all.get(i).key.equals(focusKey)) first = t;
         }
         column.addView(scroll, new LinearLayout.LayoutParams(-2, 0, 1f));
 
         TextView hint = new TextView(this);
-        hint.setText("OK to open  ·  Hold OK or press Menu to add or remove from the Dock  ·  Back to close");
+        hint.setText("OK to open  ·  Hold OK or press Menu for Dock and Hide options  ·  Back to close");
         hint.setTextColor(0x99FFFFFF);
         hint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12);
         hint.setPadding(0, dp(4), 0, dp(18));
@@ -900,16 +1026,7 @@ public class MainActivity extends Activity {
         });
         t.setOnLongClickListener(new View.OnLongClickListener() {
             public boolean onLongClick(View v) {
-                if (pins.contains(e.key)) {
-                    pins.remove(e.key);
-                    toast(e.label + " removed from the Dock");
-                } else {
-                    pins.add(e.key);
-                    toast(e.label + " added to the Dock");
-                }
-                savePins();
-                t.setPinnedMark(pins.contains(e.key));
-                rebuildDock(-1);
+                showGridActions(e, t);
                 return true;
             }
         });
@@ -919,6 +1036,37 @@ public class MainActivity extends Activity {
             }
         });
         return t;
+    }
+
+    private void showGridActions(final AppEntry e, View tile) {
+        final boolean pinned = pins.contains(e.key);
+        List<String> labels = new ArrayList<>();
+        List<Runnable> actions = new ArrayList<>();
+        labels.add(pinned ? "Remove from Dock" : "Add to Dock");
+        actions.add(new Runnable() {
+            public void run() {
+                if (pinned) pins.remove(e.key); else pins.add(e.key);
+                savePins();
+                rebuildDock(-1);
+                openAppsGrid(e.key);
+            }
+        });
+        if (!e.isBuiltIn()) {
+            labels.add("Hide from Apps");
+            actions.add(new Runnable() {
+                public void run() {
+                    hideApp(e.key);
+                    toast(e.label + " hidden. Hold OK on Settings to bring hidden apps back.");
+                    openAppsGrid(null);
+                }
+            });
+        }
+        labels.add("Cancel");
+        actions.add(new Runnable() { public void run() { openAppsGrid(e.key); } });
+        int[] loc = new int[2];
+        tile.getLocationInWindow(loc);
+        // the grid closes while this menu is up and reopens afterwards
+        showMenu(e.label, labels, actions, loc[0] + tile.getWidth() / 2f, loc[1], true, true, -1);
     }
 
     private void openOverlay(View v, boolean isGrid, final View focus) {

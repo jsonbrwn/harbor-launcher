@@ -2,8 +2,8 @@
 
 A minimal home screen for Android TV / Google TV with a desktop-style layout:
 
-- Translucent **menu bar** at the top: Apps, Inputs, Wallpaper, Settings, plus the date and clock.
-- Large thin **clock and date** over one of **25 original illustrated race-circuit wallpapers**. By default the wallpaper changes every 10 minutes with a slow crossfade. Turn that off or pick one under **Wallpaper** in the menu bar.
+- Large thin **clock and date** over one of **25 original illustrated race-circuit wallpapers**. By default the wallpaper changes every 10 minutes with a slow crossfade. Hold OK on the Settings tile and choose **Wallpaper…** to turn rotation off or pick one.
+- The clock and date use **Michroma** (SIL Open Font License, see `assets/fonts`).
 - A frosted **dock** at the bottom. The focused tile grows, its neighbours grow a little, and its name pops up above it.
 - An **Apps** grid with every installed app (plus Live TV).
 
@@ -21,9 +21,10 @@ All artwork is drawn by the app itself. No third-party icons, fonts or images ar
 | Anywhere | Back | Close the open menu or grid |
 | Anywhere | Home | Return to the dock |
 
-The dock starts with Apps, Netflix, Prime Video, YouTube and Live TV, then Inputs and Settings.
+The dock starts with Netflix, Prime Video and YouTube, then Inputs, Settings and Apps on the far right.
+Apps can be hidden from the Apps grid (hold OK > Hide from Apps); hold OK on Settings > Show hidden apps brings them back.
 
-**Inputs** lists the TV's inputs (HDMI 1-4, antenna, and so on) as the system reports them, and switches to the one you pick.
+**Inputs** shows HDMI 1, HDMI 2, HDMI 3, Antenna TV and AV, matched to the TV's own inputs.
 **Live TV** opens the TV's antenna tuner if it exposes one, or else a known Live TV app. If it can't find one, it opens the Inputs menu. You can also pin your TV's own Live TV app from the Apps grid.
 
 ## Install (from a Mac with adb)
@@ -73,6 +74,6 @@ sudo apt-get install android-sdk-platform-23 android-sdk-build-tools dalvik-exch
 
 ## Download
 
-The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.2).
+The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.3).
 The signing key isn't in this repository. It's kept privately, so a fresh clone builds with a new key, and
 that build can't install over the copy on the TV without uninstalling first.
