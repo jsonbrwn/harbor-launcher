@@ -679,6 +679,10 @@ public class MainActivity extends Activity {
                 labels.add("Move right");
                 actions.add(new Runnable() { public void run() { movePin(pinIndex, 1); } });
             }
+            if (!e.isBuiltIn()) {
+                labels.add("Force quit");
+                actions.add(new Runnable() { public void run() { forceQuit(e); } });
+            }
             labels.add("Remove from Dock");
             actions.add(new Runnable() {
                 public void run() {
@@ -703,6 +707,26 @@ public class MainActivity extends Activity {
         float cx = dockFrame.getLeft() + dockRow.getLeft() + tile.getLeft() + tile.getWidth() / 2f;
         float top = dockFrame.getTop() + dockRow.getTop() + tile.getTop() - tile.getHeight() * 0.32f;
         showMenu(e.label, labels, actions, cx, top - dp(8), true, true, -1);
+    }
+
+    /**
+     * Stops an app. Ends its background processes right away, then, if the Harbor helper
+     * (accessibility service) is on, opens the app's Settings page and presses Force stop + OK.
+     */
+    private void forceQuit(AppEntry e) {
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) getSystemService(ACTIVITY_SERVICE);
+            if (am != null) am.killBackgroundProcesses(e.key);
+        } catch (Exception ignored) { }
+        if (HomeButtonService.beginForceStop(e.key)) {
+            Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + e.key))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_HISTORY | Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS);
+            if (start(i)) {
+                toast("Force quitting " + e.label + "\u2026");
+                return;
+            }
+        }
+        toast(e.label + " closed");
     }
 
     private void movePin(int index, int delta) {

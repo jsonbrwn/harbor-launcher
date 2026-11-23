@@ -14,7 +14,7 @@ All artwork is drawn by the app itself. No third-party icons, fonts or images ar
 | Where | Button | What happens |
 |---|---|---|
 | Dock | OK | Open the app |
-| Dock | Hold OK, or Menu | Open / Move left / Move right / Remove from Dock |
+| Dock | Hold OK, or Menu | Open / Move left / Move right / Force quit / Remove from Dock |
 | Apps grid | OK | Open the app |
 | Apps grid | Hold OK, or Menu | Add to or remove from the Dock (a blue check means it's in the Dock) |
 | Anywhere | Up / Down | Move between the menu bar and the dock |
@@ -74,6 +74,20 @@ sudo apt-get install android-sdk-platform-23 android-sdk-build-tools dalvik-exch
 
 ## Download
 
-The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.3.1).
+The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.4).
 The signing key isn't in this repository. It's kept privately, so a fresh clone builds with a new key, and
 that build can't install over the copy on the TV without uninstalling first.
+
+## Force quit
+
+Hold OK on an app in the Dock and choose **Force quit**. Harbor ends the app's background processes straight away.
+If the **Harbor helper** accessibility service is on, Harbor also opens the app's Settings page, presses
+**Force stop** and **OK** for you, and comes back home. That takes about two seconds. Turn the helper on in
+Settings > Accessibility, or over adb (this appends to any services already enabled):
+
+```sh
+cur=$(adb shell settings get secure enabled_accessibility_services)
+svc=dev.harbor.launcher/dev.harbor.launcher.HomeButtonService
+adb shell settings put secure enabled_accessibility_services "${cur:+$cur:}$svc"
+adb shell settings put secure accessibility_enabled 1
+```
