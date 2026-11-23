@@ -1,5 +1,5 @@
 """Generates Harbor's dock-navigation sounds into res/raw/ (all synthesised from scratch here,
-no third-party audio). Short and understated: a tick, a pop, a tink, a thud, plus the coin ding."""
+no third-party audio). Short and understated: a blip, a tick, a pop, a tink, a thud, plus the coin ding."""
 import math, random, struct, sys, wave
 
 RATE = 44100
@@ -54,6 +54,15 @@ def thud():
         s.append(v * attack(i, 2))
     return s
 
+def blip():
+    # Jason's pick: 50 ms Hann-windowed 1180 Hz tone with a soft octave, peak 0.30 full scale.
+    n = int(RATE * 0.05); s = []
+    for i in range(n):
+        t = i / RATE
+        env = 0.5 - 0.5 * math.cos(2 * math.pi * t / 0.05)
+        s.append((math.sin(2 * math.pi * 1180 * t) + 0.2 * math.sin(2 * math.pi * 2360 * t)) * env)
+    return s
+
 def coin():
     def tone(freq, dur, amp):
         r = []
@@ -65,6 +74,7 @@ def coin():
         return r
     return tone(1046.5, 0.07, 0.8) + tone(1568.0, 0.32, 1.0)
 
+save("snd_blip", blip(), 0.30)
 save("snd_tick", tick(), 0.5)
 save("snd_pop", pop(), 0.55)
 save("snd_tink", tink(), 0.45)

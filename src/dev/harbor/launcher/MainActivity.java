@@ -530,9 +530,9 @@ public class MainActivity extends Activity {
     private boolean helperNoticeShown;
 
     // ---- navigation sound
-    private static final String KEY_SOUND = "nav_sound", KEY_SOUND_VOL = "nav_sound_vol_v2", KEY_SOUND_STYLE = "nav_sound_style";
-    private static final String[] SOUND_NAMES = {"Tick", "Pop", "Tink", "Thud", "Coin"};
-    private static final int[] SOUND_RES = {R.raw.snd_tick, R.raw.snd_pop, R.raw.snd_tink, R.raw.snd_thud, R.raw.snd_coin};
+    private static final String KEY_SOUND = "nav_sound", KEY_SOUND_VOL = "nav_sound_vol_v2", KEY_SOUND_STYLE = "nav_sound_style_v2";
+    private static final String[] SOUND_NAMES = {"Blip", "Tick", "Pop", "Tink", "Thud", "Coin"};
+    private static final int[] SOUND_RES = {R.raw.snd_blip, R.raw.snd_tick, R.raw.snd_pop, R.raw.snd_tink, R.raw.snd_thud, R.raw.snd_coin};
     private final int[] soundIds = new int[SOUND_RES.length];
     private static final String[] VOLUME_NAMES = {"Low", "Medium", "High"};
     private static final float[] VOLUMES = {0.25f, 0.55f, 1.0f};
