@@ -111,6 +111,7 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+        initSound();
         if (!prefs.contains(KEY_WALLPAPER_AT)) {
             prefs.edit().putLong(KEY_WALLPAPER_AT, System.currentTimeMillis()).apply();
         }
@@ -129,6 +130,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (soundPool != null) soundPool.release();
         try { unregisterReceiver(packageReceiver); } catch (Exception ignored) { }
         super.onDestroy();
     }
@@ -179,6 +181,11 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
+        if (event.getAction() == KeyEvent.ACTION_DOWN) {
+            int k = event.getKeyCode();
+            userMove = k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT
+                    || k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN;
+        }
         // The Menu / Options key acts like a long press on the focused tile.
         if (event.getKeyCode() == KeyEvent.KEYCODE_MENU && event.getAction() == KeyEvent.ACTION_UP) {
             View f = getCurrentFocus();
@@ -522,6 +529,32 @@ public class MainActivity extends Activity {
 
     private boolean helperNoticeShown;
 
+    // ---- navigation sound
+    private static final String KEY_SOUND = "nav_sound", KEY_SOUND_VOL = "nav_sound_volume";
+    private static final String[] VOLUME_NAMES = {"Low", "Medium", "High"};
+    private static final float[] VOLUMES = {0.25f, 0.55f, 1.0f};
+    private android.media.SoundPool soundPool;
+    private int dingId;
+    private long lastDing;
+    private boolean userMove; // only ding for D-pad moves, not focus Harbor restores itself
+
+    private void initSound() {
+        android.media.AudioAttributes aa = new android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build();
+        soundPool = new android.media.SoundPool.Builder().setMaxStreams(3).setAudioAttributes(aa).build();
+        dingId = soundPool.load(this, R.raw.ding, 1);
+    }
+
+    private void ding() {
+        if (soundPool == null || !prefs.getBoolean(KEY_SOUND, true)) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - lastDing < 90) return; // fast scrolling doesn't machine-gun it
+        lastDing = now;
+        float v = VOLUMES[Math.max(0, Math.min(2, prefs.getInt(KEY_SOUND_VOL, 1)))];
+        soundPool.play(dingId, v, v, 1, 0, 1f);
+    }
+
     private void openHomeButtonSetup() {
         closeOverlay();
         toast("Turn on \"Harbor helper\" in Accessibility. Force quit uses it to press Force stop for you.");
@@ -626,7 +659,7 @@ public class MainActivity extends Activity {
         });
         t.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             public void onFocusChange(View v, boolean has) {
-                if (has) magnify(v);
+                if (has) { magnify(v); if (overlay == null && userMove) ding(); userMove = false; }
                 else v.post(new Runnable() { public void run() { if (!dockHasFocus()) unmagnify(); } });
             }
         });
@@ -740,6 +773,24 @@ public class MainActivity extends Activity {
             actions.add(new Runnable() { public void run() { openWallpaperMenu(tile); } });
             labels.add("Weather location\u2026");
             actions.add(new Runnable() { public void run() { askWeatherLocation(); } });
+            final boolean soundOn = prefs.getBoolean(KEY_SOUND, true);
+            labels.add("Dock sound: " + (soundOn ? "On" : "Off"));
+            actions.add(new Runnable() {
+                public void run() {
+                    prefs.edit().putBoolean(KEY_SOUND, !soundOn).apply();
+                    if (!soundOn) ding();
+                }
+            });
+            if (soundOn) {
+                final int vol = prefs.getInt(KEY_SOUND_VOL, 1);
+                labels.add("Dock sound volume: " + VOLUME_NAMES[vol]);
+                actions.add(new Runnable() {
+                    public void run() {
+                        prefs.edit().putInt(KEY_SOUND_VOL, (vol + 1) % 3).apply();
+                        ding();
+                    }
+                });
+            }
             if (hiddenCount() > 0) {
                 labels.add("Show hidden apps");
                 actions.add(new Runnable() { public void run() { unhideAll(); } });

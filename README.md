@@ -10,6 +10,10 @@ A minimal home screen for Android TV / Google TV with a desktop-style layout:
 
 All artwork is drawn by the app itself. No third-party icons, fonts or images are used.
 
+## Dock sound
+
+Moving along the dock plays a short two-tone "ding" (an original sound made by `tools/make_ding.py`). Hold OK on Settings to turn **Dock sound** on or off or change its volume.
+
 ## Remote controls
 
 | Where | Button | What happens |
@@ -82,7 +86,7 @@ sudo apt-get install android-sdk-platform-23 android-sdk-build-tools dalvik-exch
 
 ## Download
 
-The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.5.2).
+The latest signed build is [`releases/Harbor.apk`](releases/Harbor.apk) (version 1.6).
 The signing key isn't in this repository. It's kept privately, so a fresh clone builds with a new key, and
 that build can't install over the copy on the TV without uninstalling first.
 
